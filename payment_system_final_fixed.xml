@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.6//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_6.dtd'>
+<nta>
+	<declaration>
+// Global clocks
+clock globalTime;
+clock t;  // Transaction timing clock
+
+// Shared variables
+bool resource_locked = false;  // Indicates if payment resource is locked
+
+// Channels for synchronization
+broadcast chan request_resource;   // Transaction requests resource
+broadcast chan release_resource;   // Transaction releases resource
+  </declaration>
+	<template>
+		<name>Transaction</name>
+		<location id="id0" x="-400" y="0">
+			<name x="-425" y="-34">Start</name>
+			<committed/>
+		</location>
+		<location id="id1" x="-263" y="0">
+			<name x="-297" y="-68">Requesting</name>
+			<label kind="invariant" x="-289" y="-42">t &lt;= 10</label>
+		</location>
+		<location id="id2" x="0" y="0">
+			<name x="17" y="-17">Processing</name>
+			<label kind="invariant" x="17" y="0">t &lt;= 5</label>
+		</location>
+		<location id="id3" x="306" y="-102">
+			<name x="323" y="-119">Success</name>
+		</location>
+		<location id="id4" x="306" y="102">
+			<name x="323" y="85">Timeout</name>
+		</location>
+		<init ref="id0"/>
+		<transition id="id5">
+			<source ref="id0"/>
+			<target ref="id1"/>
+			<label kind="assignment" x="-365" y="0">t = 0</label>
+		</transition>
+		<transition id="id6">
+			<source ref="id1"/>
+			<target ref="id2"/>
+			<label kind="guard" x="-238" y="8">!resource_locked</label>
+			<label kind="synchronisation" x="-238" y="23">request_resource!</label>
+			<label kind="assignment" x="-238" y="38">resource_locked = true, t = 0</label>
+		</transition>
+		<transition id="id7">
+			<source ref="id1"/>
+			<target ref="id4"/>
+			<label kind="guard" x="-85" y="136">t == 10</label>
+			<nail x="-263" y="136"/>
+			<nail x="238" y="136"/>
+		</transition>
+		<transition id="id8">
+			<source ref="id2"/>
+			<target ref="id3"/>
+			<label kind="guard" x="76" y="-98">t &lt; 5</label>
+			<label kind="synchronisation" x="76" y="-83">release_resource!</label>
+			<label kind="assignment" x="76" y="-68">resource_locked = false</label>
+			<nail x="68" y="-102"/>
+		</transition>
+		<transition id="id9">
+			<source ref="id2"/>
+			<target ref="id4"/>
+			<label kind="guard" x="76" y="46">t == 5</label>
+			<label kind="synchronisation" x="76" y="61">release_resource!</label>
+			<label kind="assignment" x="76" y="76">resource_locked = false</label>
+			<nail x="68" y="102"/>
+		</transition>
+	</template>
+	<template>
+		<name>ResourceManager</name>
+		<location id="id10" x="-161" y="0">
+			<name x="-255" y="-17">Available</name>
+		</location>
+		<location id="id11" x="100" y="0">
+			<name x="119" y="-17">InUse</name>
+		</location>
+		<init ref="id10"/>
+		<transition id="id12">
+			<source ref="id10"/>
+			<target ref="id11"/>
+			<label kind="synchronisation" x="-102" y="-93">request_resource?</label>
+			<nail x="-102" y="-68"/>
+			<nail x="34" y="-68"/>
+		</transition>
+		<transition id="id13">
+			<source ref="id11"/>
+			<target ref="id10"/>
+			<label kind="synchronisation" x="-102" y="68">release_resource?</label>
+			<nail x="34" y="68"/>
+			<nail x="-102" y="68"/>
+		</transition>
+	</template>
+	<system>
+// Process instantiation
+Transaction1 = Transaction();
+Transaction2 = Transaction();
+system Transaction1, Transaction2, ResourceManager;
+  </system>
+	<queries>
+		<option key="--diagnostic" value="0"/>
+		<query>
+			<formula>E&lt;&gt; Transaction1.Success || Transaction2.Success</formula>
+			<comment>There exist eventually a path where a transaction is completed successfully</comment>
+			<result outcome="success" type="quality" timestamp="2025-04-19 20:34:00 -0400">
+				<option key="--diagnostic" value="0"/>
+			</result>
+		</query>
+		<query>
+			<formula>E&lt;&gt; Transaction1.Success &amp;&amp; Transaction2.Success</formula>
+			<comment>There exists eventually a path where all transactions complete successfully</comment>
+			<result outcome="success" type="quality" timestamp="2025-04-19 20:50:38 -0400">
+				<option key="--diagnostic" value="0"/>
+			</result>
+		</query>
+		<query>
+			<formula>A[] (Transaction1.Processing imply t &lt;= 5)</formula>
+			<comment>Time bound is respected in Processing state</comment>
+			<result outcome="success" type="quality" timestamp="2025-04-19 21:06:40 -0400">
+				<option key="--diagnostic" value="0"/>
+			</result>
+		</query>
+		<query>
+			<formula>E&lt;&gt; Transaction1.Timeout and t &gt; 5</formula>
+			<comment>System can timeout when processing takes too long</comment>
+			<result outcome="success" type="quality" timestamp="2025-04-19 21:05:01 -0400">
+				<option key="--diagnostic" value="0"/>
+			</result>
+		</query>
+		<query>
+			<formula>E&lt;&gt; Transaction1.Timeout and ResourceManager.InUse</formula>
+			<comment>System can timeout when resource is unavailable</comment>
+			<result outcome="success" type="quality" timestamp="2025-04-19 21:05:13 -0400">
+				<option key="--diagnostic" value="0"/>
+			</result>
+		</query>
+		<query>
+			<formula>E&lt;&gt; Transaction1.Timeout</formula>
+			<comment>System can timeout (general case)</comment>
+			<result outcome="success" type="quality" timestamp="2025-04-19 21:08:28 -0400">
+				<option key="--diagnostic" value="0"/>
+			</result>
+		</query>
+		<query>
+			<formula>A[] not (Transaction1.Success and Transaction1.Timeout)</formula>
+			<comment>System cannot be in Success and Timeout states simultaneously</comment>
+			<result outcome="success" type="quality" timestamp="2025-04-19 20:37:51 -0400">
+				<option key="--diagnostic" value="0"/>
+			</result>
+		</query>
+	</queries>
+</nta>
