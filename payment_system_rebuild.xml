@@ -1,0 +1,293 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.6//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_6.dtd'>
+<nta>
+	<declaration>// Place global declarations here.
+clock t; // transaction time
+clock global_time;
+clock timeout_recovery; // time in timeout state
+
+// Communication channels
+chan request_resource;
+chan release_resource;
+
+// Resource state
+bool resource_locked = false;
+
+// Transaction state tracking
+const int MAX_TRANSACTIONS = 3;
+const int MAX_RETRY = 3;
+int[0, MAX_RETRY] retry_count[MAX_TRANSACTIONS]; // Array for retry counts
+bool transaction_processed[MAX_TRANSACTIONS];    // Track processed transactions
+bool transaction_success[MAX_TRANSACTIONS];      // Track successful transactions
+int total_failed_transactions = 0;
+bool transaction_finalized[MAX_TRANSACTIONS];      // Track if transaction has completed its lifecycle
+
+// Initialization
+void init_system() {
+    int i;
+    for(i = 0; i &lt; MAX_TRANSACTIONS; i++) {
+        retry_count[i] = 0;
+        transaction_processed[i] = false;
+        transaction_success[i] = false;
+        transaction_finalized[i] = false;
+    }
+    total_failed_transactions = 0;
+    resource_locked = false;
+}
+
+
+
+
+
+</declaration>
+	<template>
+		<name x="5" y="5">Transaction</name>
+		<parameter>const int id</parameter>
+		<declaration>// Place local declarations here.
+</declaration>
+		<location id="id0" x="-76" y="0">
+			<name x="-86" y="-34">Start</name>
+		</location>
+		<location id="id1" x="136" y="0">
+			<name x="59" y="-34">Requesting</name>
+			<label kind="invariant" x="85" y="17">t &lt;= 10</label>
+		</location>
+		<location id="id2" x="510" y="0">
+			<name x="501" y="-34">Processing</name>
+			<label kind="invariant" x="500" y="17">t &lt;= 5</label>
+		</location>
+		<location id="id3" x="799" y="0">
+			<name x="799" y="-34">Success</name>
+			<committed/>
+		</location>
+		<location id="id4" x="323" y="187">
+			<name x="297" y="204">TimeOut</name>
+			<label kind="invariant" x="246" y="221">timeout_recovery &lt;= 5</label>
+		</location>
+		<location id="id5" x="1096" y="0">
+			<name x="1086" y="-34">Completed</name>
+		</location>
+		<init ref="id0"/>
+		<transition id="id6">
+			<source ref="id2"/>
+			<target ref="id2"/>
+			<label kind="guard" x="442" y="-153">t == 5 &amp;&amp; retry_count[id] &lt; MAX_RETRY</label>
+			<label kind="synchronisation" x="442" y="-136">release_resource!</label>
+			<label kind="assignment" x="442" y="-119">retry_count[id]++,
+t = 0</label>
+			<nail x="629" y="-119"/>
+			<nail x="399" y="-119"/>
+		</transition>
+		<transition id="id7">
+			<source ref="id4"/>
+			<target ref="id0"/>
+			<label kind="guard" x="-102" y="170">timeout_recovery == 5</label>
+			<label kind="assignment" x="-102" y="187">total_failed_transactions++,
+timeout_recovery = 0,
+retry_count[id] = 0,
+transaction_finalized[id] = true</label>
+			<nail x="93" y="187"/>
+		</transition>
+		<transition id="id8">
+			<source ref="id3"/>
+			<target ref="id5"/>
+			<label kind="assignment" x="816" y="8">transaction_processed[id] = true,
+transaction_success[id] = true,
+transaction_finalized[id] = true</label>
+		</transition>
+		<transition id="id9">
+			<source ref="id2"/>
+			<target ref="id4"/>
+			<label kind="guard" x="433" y="76">t == 5 &amp;&amp; retry_count[id] == MAX_RETRY</label>
+			<label kind="synchronisation" x="433" y="93">release_resource!</label>
+			<label kind="assignment" x="433" y="110">timeout_recovery = 0</label>
+		</transition>
+		<transition id="id10">
+			<source ref="id1"/>
+			<target ref="id4"/>
+			<label kind="guard" x="153" y="76">t == 10</label>
+			<label kind="assignment" x="42" y="93">timeout_recovery = 0</label>
+		</transition>
+		<transition id="id11">
+			<source ref="id2"/>
+			<target ref="id3"/>
+			<label kind="guard" x="603" y="-34">t &lt; 5</label>
+			<label kind="synchronisation" x="603" y="-17">release_resource!</label>
+		</transition>
+		<transition id="id12">
+			<source ref="id1"/>
+			<target ref="id2"/>
+			<label kind="guard" x="238" y="-34">resource_locked == false</label>
+			<label kind="synchronisation" x="238" y="-17">request_resource!</label>
+			<label kind="assignment" x="238" y="0">t = 0</label>
+		</transition>
+		<transition id="id13">
+			<source ref="id0"/>
+			<target ref="id1"/>
+			<label kind="guard" x="-59" y="-102">!transaction_finalized[id]</label>
+			<label kind="assignment" x="-59" y="-85">t = 0</label>
+			<nail x="-68" y="0"/>
+		</transition>
+	</template>
+	<template>
+		<name>Resource</name>
+		<location id="id14" x="0" y="0">
+			<name x="-93" y="-17">Available</name>
+		</location>
+		<location id="id15" x="204" y="0">
+			<name x="221" y="-17">InUse</name>
+		</location>
+		<init ref="id14"/>
+		<transition id="id16">
+			<source ref="id15"/>
+			<target ref="id14"/>
+			<label kind="synchronisation" x="34" y="68">release_resource?</label>
+			<label kind="assignment" x="34" y="85">resource_locked = false</label>
+			<nail x="170" y="68"/>
+			<nail x="34" y="68"/>
+		</transition>
+		<transition id="id17">
+			<source ref="id14"/>
+			<target ref="id15"/>
+			<label kind="synchronisation" x="34" y="-110">request_resource?</label>
+			<label kind="assignment" x="34" y="-93">resource_locked = true</label>
+			<nail x="34" y="-68"/>
+			<nail x="170" y="-68"/>
+		</transition>
+	</template>
+	<template>
+		<name>System_Init</name>
+		<location id="id18" x="0" y="0">
+			<name x="-10" y="-34">Init</name>
+			<committed/>
+		</location>
+		<location id="id19" x="195" y="0">
+			<name x="185" y="-34">Running</name>
+		</location>
+		<init ref="id18"/>
+		<transition id="id20">
+			<source ref="id18"/>
+			<target ref="id19"/>
+			<label kind="assignment" x="42" y="0">init_system()</label>
+		</transition>
+	</template>
+	<system>// Place template instantiations here.
+Transaction1 = Transaction(0);
+Transaction2 = Transaction(1);
+SystemInit = System_Init();
+// List one or more processes to be composed into a system.
+system Transaction1, Transaction2, Resource, SystemInit;
+</system>
+	<queries>
+		<query>
+			<formula>A[] Transaction1.Completed imply transaction_success[0]</formula>
+			<comment>Transaction Completion Property 1: Verify that transactions in Success state are marked as successful</comment>
+			<result outcome="success" type="quality" timestamp="2025-05-03 14:21:27 -0400">
+			</result>
+		</query>
+		<query>
+			<formula>A[] transaction_success[0] imply transaction_processed[0]</formula>
+			<comment>Transaction Completion Property 2: Verify that successful transactions are also marked as processed</comment>
+			<result outcome="success" type="quality" timestamp="2025-05-03 14:21:27 -0400">
+			</result>
+		</query>
+		<query>
+			<formula>E&lt;&gt; transaction_success[0]</formula>
+			<comment>Transaction Completion Property 3: Verify there exists a path where at least one transaction completes successfully</comment>
+			<option key="--diagnostic" value="0"/>
+			<result outcome="success" type="quality" timestamp="2025-05-03 14:21:28 -0400">
+				<option key="--diagnostic" value="0"/>
+			</result>
+		</query>
+		<query>
+			<formula>E&lt;&gt; transaction_success[0] &amp;&amp; transaction_success[1]</formula>
+			<comment>Transaction Completion Property 4: Verify there exists a path where all transactions complete successfully</comment>
+			<option key="--diagnostic" value="0"/>
+			<result outcome="success" type="quality" timestamp="2025-05-03 14:21:29 -0400">
+				<option key="--diagnostic" value="0"/>
+			</result>
+		</query>
+		<query>
+			<formula>A[] transaction_processed[0] imply transaction_finalized[0]</formula>
+			<comment>Transaction Completion Property 5: Verify that processed transactions are finalized</comment>
+			<result outcome="success" type="quality" timestamp="2025-05-03 14:21:29 -0400">
+			</result>
+		</query>
+		<query>
+			<formula>A[] Resource.InUse imply resource_locked</formula>
+			<comment>Resource Management Property 1: Resource state and resource_locked variable are consistent</comment>
+			<result outcome="success" type="quality" timestamp="2025-05-03 14:21:29 -0400">
+			</result>
+		</query>
+		<query>
+			<formula>A[] resource_locked imply Resource.InUse</formula>
+			<comment>Resource Management Property 2: Resource variable and state are bidirectionally consistent</comment>
+			<result outcome="success" type="quality" timestamp="2025-05-03 14:21:29 -0400">
+			</result>
+		</query>
+		<query>
+			<formula>A[] (Transaction1.Processing &amp;&amp; t == 5 &amp;&amp; retry_count[0] == MAX_RETRY) imply !resource_locked</formula>
+			<comment>Resource Management Property 3: Resources are released when any transaction moves from processing to time out</comment>
+			<result outcome="success" type="quality" timestamp="2025-05-03 14:34:47 -0400">
+			</result>
+		</query>
+		<query>
+			<formula>E&lt;&gt; Transaction1.TimeOut &amp;&amp; t &gt;= 5 &amp;&amp; retry_count[0] &gt;= MAX_RETRY</formula>
+			<comment>A transaction can timeout after exceeding the maximum retry attempts</comment>
+			<option key="--diagnostic" value="0"/>
+			<result outcome="success" type="quality" timestamp="2025-05-03 14:21:29 -0400">
+				<option key="--diagnostic" value="0"/>
+			</result>
+		</query>
+		<query>
+			<formula>E&lt;&gt; (Transaction1.TimeOut and resource_locked)
+</formula>
+			<comment/>
+			<option key="--diagnostic" value="0"/>
+			<result outcome="success" type="quality" timestamp="2025-05-03 14:21:30 -0400">
+				<option key="--diagnostic" value="0"/>
+			</result>
+		</query>
+		<query>
+			<formula>A[] (!deadlock imply	(Transaction1.Completed || !transaction_processed[0] || (Transaction1.TimeOut and timeout_recovery &lt; 5)) &amp;&amp; 
+			(Transaction2.Completed || !transaction_processed[1] || (Transaction2.TimeOut and timeout_recovery &lt; 5)))
+
+    	</formula>
+			<comment>Resource Management Property 4: System progresses properly (no deadlock with incomplete transactions)
+This property asserts that if the system is not deadlocked, then every transaction is either:
+1. Completed, or
+2. Not processed yet, or
+3. In timeout recovery (but still within timeout bound).
+</comment>
+			<option key="--diagnostic" value="0"/>
+			<result outcome="success" type="quality" timestamp="2025-05-03 14:21:30 -0400">
+				<option key="--diagnostic" value="0"/>
+			</result>
+		</query>
+		<query>
+			<formula>A[] (retry_count[0] &lt;= MAX_RETRY) &amp;&amp; (retry_count[1] &lt;= MAX_RETRY)</formula>
+			<comment>Retry Mechanism Property 1: Retry count never exceeds maximum limit</comment>
+			<option key="--diagnostic" value="0"/>
+			<result outcome="success" type="quality" timestamp="2025-05-03 14:21:30 -0400">
+				<option key="--diagnostic" value="0"/>
+			</result>
+		</query>
+		<query>
+			<formula>A[] (Transaction1.Processing &amp;&amp; t == 5 &amp;&amp; retry_count[0] &gt;= MAX_RETRY imply Transaction1.TimeOut)
+</formula>
+			<comment>Retry Mechanism Property 2: After maximum retries, processing timeout leads to TimeOut state</comment>
+			<option key="--diagnostic" value="0"/>
+			<result outcome="success" type="quality" timestamp="2025-05-03 14:35:14 -0400">
+				<option key="--diagnostic" value="0"/>
+			</result>
+		</query>
+		<query>
+			<formula>E&lt;&gt; retry_count[0] &gt; 0 &amp;&amp; Transaction1.Success</formula>
+			<comment>Retry Mechanism Property 3: It's possible to succeed after some retries</comment>
+			<option key="--diagnostic" value="0"/>
+			<result outcome="success" type="quality" timestamp="2025-05-03 14:34:53 -0400">
+				<option key="--diagnostic" value="0"/>
+			</result>
+		</query>
+	</queries>
+</nta>
